@@ -1,0 +1,11 @@
+langchain-pinecone==0.1.1
+langchain-openai==0.1.8
+langchain-text-splitters==0.2.0
+langchain==0.2.1
+pinecone-notebooks==0.1.1
+jupyterlab
+google
+langchain
+pinecone-client
+jupyter
+streamlit
