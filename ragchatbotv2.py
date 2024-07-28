@@ -503,7 +503,7 @@ markdown_splitter = MarkdownHeaderTextSplitter(
 )
 md_header_splits = markdown_splitter.split_text(markdown_document)
 
-print(md_header_splits)
+# print(md_header_splits)
 
 # Create vector store
 docsearch = PineconeVectorStore.from_documents(
@@ -566,8 +566,9 @@ If the user's query out of the scale of dataset, be polite to tell them who you 
 # calculation part =====================
 
 
-# =========以下是尝试print retrieve context
-def retrieve_contexts(query):
+
+# # =========以下是20240727尝试print retrieve context
+def retrieve_contexts(query,top_k=5):
     # Generate query embedding
     query_embedding = embeddings.embed_query(query)
     
@@ -575,7 +576,7 @@ def retrieve_contexts(query):
     results = index.query(
         vector=query_embedding,
         namespace=namespace,
-        top_k=3,  # Adjust the number of retrieved contexts
+        top_k=top_k,  # Adjust the number of retrieved contexts
         include_values=True,
         include_metadata=True
     )
@@ -583,7 +584,8 @@ def retrieve_contexts(query):
     # print("results are ",results)
 
     # Extract retrieved contexts
-    retrieved_contexts = [match['metadata']['text'] for match in results['matches']]
+    # retrieved_contexts = [match['metadata']['text'] for match in results['matches']]
+    retrieved_contexts = {x["metadata"]['text']: i for i, x in enumerate(results["matches"])}
 
 
     # Print retrieved contexts
@@ -596,54 +598,76 @@ def retrieve_contexts(query):
     return retrieved_contexts
     
 
-    # return results
+#     # return results
 
 # Example queries
 query1 = "Can you recommend some songs for a beach wedding ceremony?"
 query2 = "What are some classical music suitable for the first dance?"
+query3 = "What's the most popular song 2023?"
 
 # Retrieve and print contexts for each query
 print("Query 1: Can you recommend some songs for a beach wedding ceremony")
 contexts_query1 = retrieve_contexts(query1)
 print("\nQuery 2: What are some classical music suitable for the first dance?")
 contexts_query2 = retrieve_contexts(query2)
+print("\nQuery 3: What's the most popular song 2023?")
+contexts_query3 = retrieve_contexts(query3)
 
-# ============以上是尝试print retrieve context
 
-# Define relevant contexts for evaluation
-relevant_contexts = {
-    "Can you recommend some songs for a beach wedding ceremony?": [
-        "Better Together",
-        "Here Comes the Sun"
-    ],
-    "Give me some classical music suitable for the first dance": [
-        "Canon in D",
-        "Clair de Lune"
-    ]
-}
+# # ============以上是尝试print retrieve context
 
-# Function to calculate precision
-def calculate_precision(retrieved, relevant):
-    relevant_retrieved = [context for context in retrieved if any(rel in context for rel in relevant)]
-    precision = len(relevant_retrieved) / len(retrieved) if retrieved else 0
-    return precision
+# # ============以下是latency
+# Function to measure response time for a query
+def measure_response_time(query, top_k=2):
+    start_time = time.time()
+    docs = retrieve_contexts(query, top_k)
+    answer = get_answers(query)
+    end_time = time.time()
+    response_time = end_time - start_time
+    print("Generated Answer:")
+    print(answer)
+    print(f"Response Time: {response_time} seconds")
+    return response_time
 
-# Example queries
-queries = [
-    "Can you recommend some songs for a beach wedding ceremony?",
-    "Give me some classical music suitable for the first dance"
-]
+# Example usage
+response_time = measure_response_time(query1, top_k=2)
+response_time = measure_response_time(query2, top_k=2)
+response_time = measure_response_time(query3, top_k=2)
 
-# Calculate and print precision for each query
-for query in queries:
-    print(f"Query: {query}")
-    retrieved_contexts = retrieve_contexts(query)
-    precision = calculate_precision(retrieved_contexts, relevant_contexts[query])
-    print(f"Precision: {precision:.2f}")
-    print("Retrieved Contexts:")
-    for context in retrieved_contexts:
-        print(f"- {context}")
-    print("\n")
+# # Define relevant contexts for evaluation
+# relevant_contexts = {
+#     "Can you recommend some songs for a beach wedding ceremony?": [
+#         "Better Together",
+#         "Here Comes the Sun"
+#     ],
+#     "Give me some classical music suitable for the first dance": [
+#         "Canon in D",
+#         "Clair de Lune"
+#     ]
+# }
+
+# # Function to calculate precision
+# def calculate_precision(retrieved, relevant):
+#     relevant_retrieved = [context for context in retrieved if any(rel in context for rel in relevant)]
+#     precision = len(relevant_retrieved) / len(retrieved) if retrieved else 0
+#     return precision
+
+# # Example queries
+# queries = [
+#     "Can you recommend some songs for a beach wedding ceremony?",
+#     "Give me some classical music suitable for the first dance"
+# ]
+
+# # Calculate and print precision for each query
+# for query in queries:
+#     print(f"Query: {query}")
+#     retrieved_contexts = retrieve_contexts(query)
+#     precision = calculate_precision(retrieved_contexts, relevant_contexts[query])
+#     print(f"Precision: {precision:.2f}")
+#     print("Retrieved Contexts:")
+#     for context in retrieved_contexts:
+#         print(f"- {context}")
+#     print("\n")
 
 # Sample queries and comparation between chatbot with knowledge and without knowledge
 # query1 = "What are your recommendation for wedding hold indoor?"
