@@ -23,7 +23,7 @@ embeddings = OpenAIEmbeddings(
 )
 
 # Define index and namespace
-index_name = "wedding-music-bot"
+index_name = "wedding-music-botv2"
 namespace = "weddingvector"
 
 # Setup Pinecone index
@@ -47,8 +47,6 @@ markdown_document = """
 ## Wedding Music Recommendation Dataset
 
 This dataset is designed to provide a selection of songs suitable for weddings, encompassing various genres and moments within the event, such as the ceremony, reception, and first dance.
-
-### Music Entries
 
 ## Perfect
 - **Artist**: Ed Sheeran
@@ -490,9 +488,105 @@ This dataset is designed to provide a selection of songs suitable for weddings, 
 - **Explicit**: No
 - **Album**: Come On Over
 
-## Conclusion
+## Clair de Lune
+- **Artist**: Claude Debussy
+- **Genre**: Classical
+- **Year**: 1905
+- **Description**: A beautiful and serene piano piece.
+- **Popularity**: 92
+- **Duration (ms)**: 300000
+- **Explicit**: No
+- **Album**: Clair de Lune and Other Piano Favorites
 
-This dataset provides a comprehensive collection of songs across various genres and years, perfect for generating music recommendations for weddings. Use this dataset to enhance the music recommendation capabilities of your chatbot.
+## Moonlight Sonata
+- **Artist**: Ludwig van Beethoven
+- **Genre**: Classical
+- **Year**: 1801
+- **Description**: A dramatic and expressive piano sonata.
+- **Popularity**: 91
+- **Duration (ms)**: 900000
+- **Explicit**: No
+- **Album**: Beethoven: Complete Piano Sonatas
+
+## Canon in D
+- **Artist**: Johann Pachelbel
+- **Genre**: Classical
+- **Year**: 1680
+- **Description**: A popular and timeless piece often used in weddings.
+- **Popularity**: 90
+- **Duration (ms)**: 300000
+- **Explicit**: No
+- **Album**: Pachelbel: Canon & Gigue
+
+## The Four Seasons: Spring
+- **Artist**: Antonio Vivaldi
+- **Genre**: Classical
+- **Year**: 1725
+- **Description**: A lively and famous violin concerto.
+- **Popularity**: 89
+- **Duration (ms)**: 600000
+- **Explicit**: No
+- **Album**: Vivaldi: The Four Seasons
+
+## Eine kleine Nachtmusik
+- **Artist**: Wolfgang Amadeus Mozart
+- **Genre**: Classical
+- **Year**: 1787
+- **Description**: A cheerful and well-known serenade.
+- **Popularity**: 88
+- **Duration (ms)**: 1800000
+- **Explicit**: No
+- **Album**: Mozart: Eine kleine Nachtmusik
+
+## Swan Lake
+- **Artist**: Pyotr Ilyich Tchaikovsky
+- **Genre**: Classical
+- **Year**: 1876
+- **Description**: A famous ballet score with enchanting melodies.
+- **Popularity**: 90
+- **Duration (ms)**: 720000
+- **Explicit**: No
+- **Album**: Tchaikovsky: Swan Lake
+
+## Symphony No. 5
+- **Artist**: Ludwig van Beethoven
+- **Genre**: Classical
+- **Year**: 1808
+- **Description**: A powerful and iconic symphony.
+- **Popularity**: 94
+- **Duration (ms)**: 2100000
+- **Explicit**: No
+- **Album**: Beethoven: Symphony No. 5
+
+## Gymnopédie No. 1
+- **Artist**: Erik Satie
+- **Genre**: Classical
+- **Year**: 1888
+- **Description**: A soothing and meditative piano piece.
+- **Popularity**: 87
+- **Duration (ms)**: 180000
+- **Explicit**: No
+- **Album**: Satie: Piano Works
+
+## Boléro
+- **Artist**: Maurice Ravel
+- **Genre**: Classical
+- **Year**: 1928
+- **Description**: A repetitive and hypnotic orchestral piece.
+- **Popularity**: 86
+- **Duration (ms)**: 900000
+- **Explicit**: No
+- **Album**: Ravel: Boléro
+
+## Adagio for Strings
+- **Artist**: Samuel Barber
+- **Genre**: Classical
+- **Year**: 1938
+- **Description**: A hauntingly beautiful and emotional piece for strings.
+- **Popularity**: 89
+- **Duration (ms)**: 480000
+- **Explicit**: No
+- **Album**: Barber: Adagio for Strings
 
 """
 
@@ -521,7 +615,7 @@ for ids in index.list(namespace=namespace):
     query = index.query(
         id=ids[0],
         namespace=namespace,
-        top_k=2,
+        top_k=5,
         include_values=True,
         include_metadata=True
     )
@@ -538,8 +632,53 @@ llm = ChatOpenAI(
 qa = RetrievalQA.from_chain_type(
     llm=llm,
     chain_type="stuff",
-    retriever=docsearch.as_retriever()
+    retriever=docsearch.as_retriever(),
+    return_source_documents=True,
+    
 )
+
+
+# 似乎RetrievalQA 已经启弃用https://api.python.langchain.com/en/latest/chains/langchain.chains.retrieval_qa.base.RetrievalQA.html
+# 新的实现方式
+from langchain.chains import create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.prompts import ChatPromptTemplate
+
+
+def get_answer_v2(llm,query):
+    retriever = docsearch.as_retriever(search_kwargs={'k': 3})  # The retriever. K means Amount of documents to return (Default: 4)
+    llm = llm
+    system_prompt = (
+    "You are a professional wedding assistant with extensive knowledge of wedding music planning and organization."
+     " You have experience in assisting couples with every aspect of their wedding, especially choosing the right music for the ceremony and reception. "
+     "You are detail-oriented, resourceful, and dedicated to making each wedding unique and memorable. "
+     "When interacting with users, first, always ask about their preference, such as the style of the wedding(outdoor/indoor/small/large) and the taste of music such as the artists, year, the provide thoughtful and tailored advice based on their needs and preferences. "
+     "Here are some examples of the types of assistance you can offer: Music Recommendations: Base on the provided dataset, suggest appropriate songs for different parts of the wedding, such as the ceremony, first dance, and reception. Offer a mix of classic and contemporary options that suit the couple's tastes."
+     "If you give answer about music, not too vague, must enroll at least one of the specific piece of music in the dataset."
+     "When responding to queries, be polite, empathetic, and professional. Your goal is to help users plan their perfect wedding day with ease and confidence."
+     "If the user's query out of the scale of dataset, be polite to tell them who you are and what you are specialize in, and professional tell them you do not know because it's not your are specialize in, invite the user to ask questions about wedding music."
+    "If you don't know the answer, say you don't know. "
+    "\n\n"
+    "{context}"
+    )
+    prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", system_prompt),
+        ("human", "{input}"),
+    ]
+    )
+    question_answer_chain = create_stuff_documents_chain(llm, prompt)
+    rag_chain = create_retrieval_chain(retriever, question_answer_chain)
+    retriver2_result = rag_chain.invoke({"input": query})
+
+    return retriver2_result
+
+print("Test the new retriver==================chatbot v1 retrieval context")
+print(get_answer_v2(llm,"What are some classical music suitable for the first dance?"))
+
+
+
+
 
 def get_answers(query):
     # return qa.invoke(query)
@@ -568,9 +707,10 @@ If the user's query out of the scale of dataset, be polite to tell them who you 
 
 
 # # =========以下是20240727尝试print retrieve context
-def retrieve_contexts(query,top_k=5):
+def retrieve_contexts(query,top_k=2):
     # Generate query embedding
     query_embedding = embeddings.embed_query(query)
+    # print(f"Query Embedding: {query_embedding}")
     
     # Retrieve contexts from Pinecone
     results = index.query(
@@ -581,7 +721,7 @@ def retrieve_contexts(query,top_k=5):
         include_metadata=True
     )
 
-    # print("results are ",results)
+    # print("retrieval result: ",results)
 
     # Extract retrieved contexts
     # retrieved_contexts = [match['metadata']['text'] for match in results['matches']]
@@ -596,7 +736,16 @@ def retrieve_contexts(query,top_k=5):
         
     
     return retrieved_contexts
-    
+
+question = "What are some classical music suitable for the first dance?"
+# response = qa({"query": question})
+
+response = qa.invoke(question)
+print("chatbot v1 retrieval context")
+print(question)
+print(f"{response['result']}")
+print("REFERENCES")
+print(f"{response['source_documents']}")
 
 #     # return results
 
@@ -606,19 +755,19 @@ query2 = "What are some classical music suitable for the first dance?"
 query3 = "What's the most popular song 2023?"
 
 # Retrieve and print contexts for each query
-print("Query 1: Can you recommend some songs for a beach wedding ceremony")
-contexts_query1 = retrieve_contexts(query1)
-print("\nQuery 2: What are some classical music suitable for the first dance?")
-contexts_query2 = retrieve_contexts(query2)
-print("\nQuery 3: What's the most popular song 2023?")
-contexts_query3 = retrieve_contexts(query3)
+# print("Query 1: Can you recommend some songs for a beach wedding ceremony")
+# contexts_query1 = retrieve_contexts(query1)
+# print("\nQuery 2: What are some classical music suitable for the first dance?")
+# contexts_query2 = retrieve_contexts(query2)
+# print("\nQuery 3: What's the most popular song 2023?")
+# contexts_query3 = retrieve_contexts(query3)
 
 
 # # ============以上是尝试print retrieve context
 
 # # ============以下是latency
 # Function to measure response time for a query
-def measure_response_time(query, top_k=2):
+def measure_response_time(query, top_k):
     start_time = time.time()
     docs = retrieve_contexts(query, top_k)
     answer = get_answers(query)
@@ -630,44 +779,11 @@ def measure_response_time(query, top_k=2):
     return response_time
 
 # Example usage
-response_time = measure_response_time(query1, top_k=2)
-response_time = measure_response_time(query2, top_k=2)
-response_time = measure_response_time(query3, top_k=2)
+# response_time = measure_response_time(query1, top_k=5)
+# response_time = measure_response_time(query2, top_k=5)
+# response_time = measure_response_time(query3, top_k=5)
 
-# # Define relevant contexts for evaluation
-# relevant_contexts = {
-#     "Can you recommend some songs for a beach wedding ceremony?": [
-#         "Better Together",
-#         "Here Comes the Sun"
-#     ],
-#     "Give me some classical music suitable for the first dance": [
-#         "Canon in D",
-#         "Clair de Lune"
-#     ]
-# }
 
-# # Function to calculate precision
-# def calculate_precision(retrieved, relevant):
-#     relevant_retrieved = [context for context in retrieved if any(rel in context for rel in relevant)]
-#     precision = len(relevant_retrieved) / len(retrieved) if retrieved else 0
-#     return precision
-
-# # Example queries
-# queries = [
-#     "Can you recommend some songs for a beach wedding ceremony?",
-#     "Give me some classical music suitable for the first dance"
-# ]
-
-# # Calculate and print precision for each query
-# for query in queries:
-#     print(f"Query: {query}")
-#     retrieved_contexts = retrieve_contexts(query)
-#     precision = calculate_precision(retrieved_contexts, relevant_contexts[query])
-#     print(f"Precision: {precision:.2f}")
-#     print("Retrieved Contexts:")
-#     for context in retrieved_contexts:
-#         print(f"- {context}")
-#     print("\n")
 
 # Sample queries and comparation between chatbot with knowledge and without knowledge
 # query1 = "What are your recommendation for wedding hold indoor?"
