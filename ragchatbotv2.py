@@ -645,9 +645,13 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 
 
-def get_answer_v2(llm,query):
+def get_answer_v2(query):
     retriever = docsearch.as_retriever(search_kwargs={'k': 3})  # The retriever. K means Amount of documents to return (Default: 4)
-    llm = llm
+    llm = ChatOpenAI(
+    openai_api_key=os.environ.get('OPENAI_API_KEY'),
+    model_name='gpt-3.5-turbo',
+    temperature=0.2
+)
     system_prompt = (
     "You are a professional wedding assistant with extensive knowledge of wedding music planning and organization."
      " You have experience in assisting couples with every aspect of their wedding, especially choosing the right music for the ceremony and reception. "
@@ -673,8 +677,12 @@ def get_answer_v2(llm,query):
 
     return retriver2_result
 
-print("Test the new retriver==================chatbot v1 retrieval context")
-print(get_answer_v2(llm,"What are some classical music suitable for the first dance?"))
+print("Test the new retriver==================chatbot v2 retrieval context")
+print("Query 1","What are some classical music suitable for the first dance?")
+print("Generated Answer")
+print(get_answer_v2("What are some classical music suitable for the first dance?")['answer'])
+print("Retrieve Contexts")
+print(get_answer_v2("What are some classical music suitable for the first dance?")['context'])
 
 
 
@@ -698,7 +706,7 @@ If the user's query out of the scale of dataset, be polite to tell them who you 
 """
 
     full_query = f"{persona} {query}"
-    response = qa.invoke(full_query)
+    response = qa.invoke(query)
     return response['result']
 
 
@@ -741,11 +749,10 @@ question = "What are some classical music suitable for the first dance?"
 # response = qa({"query": question})
 
 response = qa.invoke(question)
-print("chatbot v1 retrieval context")
-print(question)
-print(f"{response['result']}")
-print("REFERENCES")
-print(f"{response['source_documents']}")
+print("=========chatbot v1 retrieval context")
+print("Query 1",question)
+print("Generated Answer",f"{response['result']}")
+print("Retrieve Contexts",f"{response['source_documents']}")
 
 #     # return results
 

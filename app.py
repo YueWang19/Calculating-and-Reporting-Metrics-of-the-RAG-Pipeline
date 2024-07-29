@@ -1,5 +1,6 @@
 import streamlit as st
 from ragchatbotv2 import get_answers
+from ragchatbotv2 import get_answer_v2
 
 # Initialize session state for conversation history
 if 'history' not in st.session_state:
@@ -48,7 +49,8 @@ with st.form(key='query_form', clear_on_submit=True):
 
 # Process user query
 if query:
-    answer = get_answers(query)
+    # answer = get_answers(query)
+    answer = get_answer_v2(query)['answer']
     # Add user query and bot response to conversation history
     st.session_state.history.append({"message": query, "is_user": True})
     st.session_state.history.append({"message": answer, "is_user": False})
