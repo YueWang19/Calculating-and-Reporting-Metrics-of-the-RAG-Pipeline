@@ -8,6 +8,10 @@ https://github.com/YueWang19/Adaptive-recommendation-chatbot-with-RAG-and-vector
 
 This repository contains the version 1 chatbot and the calculation function, you can clone and run to play
 
+## Quick tutorial video
+
+https://youtu.be/lRbs0u_WBjU
+
 ## Report
 
 The detailed report on "Calculating and Reporting Metrics of the RAG Pipeline in Wedding Music Recommendation Chatbot" can be found in the `Calculating_and_Reporting_Metrics_of_the_RAG_Pipeline_in_Wedding_Music_Recommendation_Chatbot.pdf` file. The report includes the following sections:
