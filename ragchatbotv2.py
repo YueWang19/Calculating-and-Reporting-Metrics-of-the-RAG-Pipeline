@@ -6,7 +6,9 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 
 from langchain_openai import ChatOpenAI
-from langchain.chains import RetrievalQA
+from langchain.chains import create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.prompts import ChatPromptTemplate
 
 # Set your API keys
 os.environ['PINECONE_API_KEY'] = ''
@@ -23,7 +25,7 @@ embeddings = OpenAIEmbeddings(
 )
 
 # Define index and namespace
-index_name = "wedding-music-botv2"
+index_name = "wedding-music-bot2"
 namespace = "weddingvector"
 
 # Setup Pinecone index
@@ -44,10 +46,6 @@ if index_name not in pc.list_indexes().names():
 # Prepare document for search
 
 markdown_document = """
-## Wedding Music Recommendation Dataset
-
-This dataset is designed to provide a selection of songs suitable for weddings, encompassing various genres and moments within the event, such as the ceremony, reception, and first dance.
-
 ## Perfect
 - **Artist**: Ed Sheeran
 - **Genre**: Pop
@@ -623,41 +621,25 @@ for ids in index.list(namespace=namespace):
 
 
 
-# Initialize the LLM and QA system
-llm = ChatOpenAI(
-    openai_api_key=os.environ.get('OPENAI_API_KEY'),
-    model_name='gpt-3.5-turbo',
-    temperature=0.2
-)
-qa = RetrievalQA.from_chain_type(
-    llm=llm,
-    chain_type="stuff",
-    retriever=docsearch.as_retriever(),
-    return_source_documents=True,
-    
-)
-
-
-# 似乎RetrievalQA 已经启弃用https://api.python.langchain.com/en/latest/chains/langchain.chains.retrieval_qa.base.RetrievalQA.html
+# chatbot version 2 retrieve function
+# RetrievalQA 已经启弃用https://api.python.langchain.com/en/latest/chains/langchain.chains.retrieval_qa.base.RetrievalQA.html
 # 新的实现方式
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
+
 
 
 def get_answer_v2(query):
     retriever = docsearch.as_retriever(search_kwargs={'k': 3})  # The retriever. K means Amount of documents to return (Default: 4)
     llm = ChatOpenAI(
     openai_api_key=os.environ.get('OPENAI_API_KEY'),
-    model_name='gpt-3.5-turbo',
-    temperature=0.2
+    model_name='gpt-4o-mini', #adjust to a new model
+    temperature=0.4 # change the temperature from 0.2 to 0.4
 )
     system_prompt = (
     "You are a professional wedding assistant with extensive knowledge of wedding music planning and organization."
      " You have experience in assisting couples with every aspect of their wedding, especially choosing the right music for the ceremony and reception. "
      "You are detail-oriented, resourceful, and dedicated to making each wedding unique and memorable. "
-     "When interacting with users, first, always ask about their preference, such as the style of the wedding(outdoor/indoor/small/large) and the taste of music such as the artists, year, the provide thoughtful and tailored advice based on their needs and preferences. "
-     "Here are some examples of the types of assistance you can offer: Music Recommendations: Base on the provided dataset, suggest appropriate songs for different parts of the wedding, such as the ceremony, first dance, and reception. Offer a mix of classic and contemporary options that suit the couple's tastes."
+    #  "When interacting with users, first, always ask about their preference, such as the style of the wedding(outdoor/indoor/small/large) and the taste of music such as the artists, year, the provide thoughtful and tailored advice based on their needs and preferences. "
+    #  "Here are some examples of the types of assistance you can offer: Music Recommendations: Base on the provided dataset, suggest appropriate songs for different parts of the wedding, such as the ceremony, first dance, and reception. Offer a mix of classic and contemporary options that suit the couple's tastes."
      "If you give answer about music, not too vague, must enroll at least one of the specific piece of music in the dataset."
      "When responding to queries, be polite, empathetic, and professional. Your goal is to help users plan their perfect wedding day with ease and confidence."
      "If the user's query out of the scale of dataset, be polite to tell them who you are and what you are specialize in, and professional tell them you do not know because it's not your are specialize in, invite the user to ask questions about wedding music."
@@ -677,145 +659,57 @@ def get_answer_v2(query):
 
     return retriver2_result
 
-print("Test the new retriver==================chatbot v2 retrieval context")
-print("Query 1","What are some classical music suitable for the first dance?")
-print("Generated Answer")
-print(get_answer_v2("What are some classical music suitable for the first dance?")['answer'])
-print("Retrieve Contexts")
-print(get_answer_v2("What are some classical music suitable for the first dance?")['context'])
-
-
-
-
-
-def get_answers(query):
-    # return qa.invoke(query)
-    persona = """"
-You are a professional wedding assistant with extensive knowledge of wedding music planning and organization. You have experience in assisting couples with every aspect of their wedding, especially choosing the right music for the ceremony and reception. You are detail-oriented, resourceful, and dedicated to making each wedding unique and memorable. 
-
-When interacting with users, first, always ask about their preference, such as the style of the wedding(outdoor/indoor/small/large) and the taste of music such as the artists, year, the provide thoughtful and tailored advice based on their needs and preferences. Here are some examples of the types of assistance you can offer:
-
- **Music Recommendations**: Base on the provided dataset, suggest appropriate songs for different parts of the wedding, such as the ceremony, first dance, and reception. Offer a mix of classic and contemporary options that suit the couple's tastes.
-
-If you give answer about music, not too vague, must enroll at least one of the specific piece of music in the dataset.
-
-
-When responding to queries, be polite, empathetic, and professional. Your goal is to help users plan their perfect wedding day with ease and confidence.
-
-If the user's query out of the scale of dataset, be polite to tell them who you are and what you are specialize in, and professional tell them you do not know because it's not your are specialize in, invite the user to ask questions about wedding music.
-"""
-
-    full_query = f"{persona} {query}"
-    response = qa.invoke(query)
-    return response['result']
-
 
 # calculation part =====================
 
 
 
-# # =========以下是20240727尝试print retrieve context
-def retrieve_contexts(query,top_k=2):
-    # Generate query embedding
-    query_embedding = embeddings.embed_query(query)
-    # print(f"Query Embedding: {query_embedding}")
-    
-    # Retrieve contexts from Pinecone
-    results = index.query(
-        vector=query_embedding,
-        namespace=namespace,
-        top_k=top_k,  # Adjust the number of retrieved contexts
-        include_values=True,
-        include_metadata=True
-    )
-
-    # print("retrieval result: ",results)
-
-    # Extract retrieved contexts
-    # retrieved_contexts = [match['metadata']['text'] for match in results['matches']]
-    retrieved_contexts = {x["metadata"]['text']: i for i, x in enumerate(results["matches"])}
+# # =========以下是20240727尝试 print and evaluate retrieve context
 
 
-    # Print retrieved contexts
-    for match in results['matches']:
-        print(f"Score: {match['score']}")
-        print(f"Context: {match['metadata']['text']}")
-        print("\n")
-        
-    
-    return retrieved_contexts
+def retrieve_context_of_v2(query):
+    print("=========chatbot v2 retrieval context and generated answer=========")
+    response = get_answer_v2(query)
+    print("Query:",query)
+    print("\n\n")
+    print("Generated Answer:",f"{response['answer']}")
+    print("\n\n")
+    print("Retrieve Contexts:",f"{response['context']}")
+    print("\n\n")
+    return response['context']
 
-question = "What are some classical music suitable for the first dance?"
-# response = qa({"query": question})
 
-response = qa.invoke(question)
-print("=========chatbot v1 retrieval context")
-print("Query 1",question)
-print("Generated Answer",f"{response['result']}")
-print("Retrieve Contexts",f"{response['source_documents']}")
-
-#     # return results
 
 # Example queries
 query1 = "Can you recommend some songs for a beach wedding ceremony?"
-query2 = "What are some classical music suitable for the first dance?"
+query2 = "What are some classical music suitable for the first dance"
 query3 = "What's the most popular song 2023?"
 
-# Retrieve and print contexts for each query
-# print("Query 1: Can you recommend some songs for a beach wedding ceremony")
-# contexts_query1 = retrieve_contexts(query1)
-# print("\nQuery 2: What are some classical music suitable for the first dance?")
-# contexts_query2 = retrieve_contexts(query2)
-# print("\nQuery 3: What's the most popular song 2023?")
-# contexts_query3 = retrieve_contexts(query3)
 
+# retrieve_contexts(query1,top_k=2)
+retrieve_context_of_v2(query1)
+retrieve_context_of_v2(query2)
+retrieve_context_of_v2(query3)
 
 # # ============以上是尝试print retrieve context
 
 # # ============以下是latency
 # Function to measure response time for a query
-def measure_response_time(query, top_k):
+def measure_response_time_v2(query):
     start_time = time.time()
-    docs = retrieve_contexts(query, top_k)
-    answer = get_answers(query)
+    docs = retrieve_context_of_v2(query)
+    answer = get_answer_v2(query)
     end_time = time.time()
     response_time = end_time - start_time
-    print("Generated Answer:")
+    print("Chatbot v2 Generated Answer:")
     print(answer)
-    print(f"Response Time: {response_time} seconds")
+    print(f"Chatbot v2 Response Time: {response_time} seconds")
     return response_time
 
-# Example usage
-# response_time = measure_response_time(query1, top_k=5)
-# response_time = measure_response_time(query2, top_k=5)
-# response_time = measure_response_time(query3, top_k=5)
+measure_response_time_v2(query1)
+measure_response_time_v2(query2)
+measure_response_time_v2(query3)
 
 
+print("Calculate end")
 
-# Sample queries and comparation between chatbot with knowledge and without knowledge
-# query1 = "What are your recommendation for wedding hold indoor?"
-
-# query2 = "I like classical music, give me some advice"
-
-# query3 = "What are the most popular song of spotify 2023?"
-
-# query1_with_knowledge = qa.invoke(get_answers(query1))
-# query1_without_knowledge = llm.invoke(query1)
-
-# print(query1_with_knowledge)
-# print()
-# print(query1_without_knowledge)
-
-# query2_with_knowledge = qa.invoke(get_answers(query2))
-# query2_without_knowledge = llm.invoke(query2)
-
-# print(query2_with_knowledge)
-# print()
-# print(query2_without_knowledge)
-
-# query3_with_knowledge = qa.invoke(get_answers(query3))
-# query3_without_knowledge = llm.invoke(query3)
-
-# print(query3_with_knowledge)
-# print()
-# print(query3_without_knowledge)
